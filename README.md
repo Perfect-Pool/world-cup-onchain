@@ -19,8 +19,6 @@ The first round consists of 8 groups with 4 teams each. Players can bet on the f
 - **Round 4 (Semi-finals)**: 2 matches between the 4 winners from Round 3
 - **Round 5 (Final)**: The championship match between the 2 winners from Round 4
 
-Optionally, a third-place match can be included between the losers of the semi-finals to determine the third-place winner.
-
 ## Betting Mechanics
 
 While the game is not activated, players can bet on the results of the matches by using the WorldCupEntry contract, minting a dynamic onchain NFT.

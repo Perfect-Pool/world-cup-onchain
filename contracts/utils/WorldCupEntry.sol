@@ -4,7 +4,7 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "../interfaces/IGamesHub.sol";
-import "../interfaces/IBracketGame8.sol";
+import "../interfaces/IWorldCup.sol";
 import "../interfaces/IERC20.sol";
 
 interface INftMetadata {
@@ -14,7 +14,7 @@ interface INftMetadata {
     ) external view returns (string memory);
 }
 
-contract BracketTicket8 is ERC721, ReentrancyGuard {
+contract WorldCupEntry is ERC721, ReentrancyGuard {
     event BetPlaced(
         address indexed _player,
         uint256 indexed _gameId,

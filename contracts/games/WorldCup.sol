@@ -2,26 +2,31 @@
 pragma solidity ^0.8.19;
 
 import "../interfaces/IGamesHub.sol";
-import "../interfaces/IBracketGame8.sol";
-import "../interfaces/IBracketTicket8.sol";
+import "../interfaces/IWorldCup.sol";
+import "../interfaces/IWorldCupEntry.sol";
 
 /**
- * @title BracketGame8 as OlympicsBrackets
+ * @title WorldCup
  * @author PerfectPool
- * @notice The BracketGame8 contract manages a bracket-style tournament with 8 teams.
- * The tournament consists of 3 rounds, with the first round having 4 matches between the 8 teams.
- * While the game is not activated, the players can bet on the results of the matches, using the BracketTicket8 contract.
+ * @notice The WorldCup contract manages with 8 groups of 4 teams each (32 teams) and a bracket-style tournament with 16 teams.
+ * The tournament consists of 5 rounds, with the first round being the group stage, while the others having 8 matches 
+ * between the 16 teams.
+ * While the game is not activated, the players can bet on the results of the matches, using the WorldCupEntry contract.
  * When the game is activated by an administrator, there will be no more bets accepted and the results of the matches can be set.
  *
- * The winners of each match advance to the second round, which has 2 matches.
- * The winners of the second round then compete in the final match of the third round to determine the winner and second place.
- * Optionally, the game can include a third-place match between the losers of the second round matches.
+ * The first round consists on getting the order of the 8 groups, with 4 matches between the 32 teams.
+ * The first and second position on each group will form the 16 teams that will compete in the second round.
+ * The second round consists in a bracket-style tournament with 8 matches between the 16 winner teams.
+ * The winners of each match advance to the third round, which has 4 matches.
+ * The winners of each third round match advance to the final match of the fourth round, that has 2 matches.
+ * The winners of the fourth round then compete in the final match of the fourth round to determine the winner and second place.
+ * Optionally, the game can include a third-place match between the losers of the fourth round matches.
  * This allows for the determination of the third place in addition to the winner and second place.
  *
- * This contrat is modified only by the Bracket8Proxy contract, which is the data storage contract for the Bracket8 game.
+ * This contrat is modified only by the WorldCupProxy contract, which is the data storage contract for the WorldCup game.
  */
 
-contract OlympicsBrackets is IBracketGame8 {
+contract WorldCup is IWorldCup {
     /** STRUCTS **/
     /**
      * @notice Struct to store the data of a match
@@ -40,6 +45,30 @@ contract OlympicsBrackets is IBracketGame8 {
     }
 
     /**
+     * @notice Struct to store the data of a group
+     * @param teams The array of teams
+     * @param finalResult The final result of the group (the index in order of the winners, 0 is not defined)
+     * @param finished Boolean to determine if the group is finished
+     */
+    struct Group {
+        uint256[4] teams;
+        uint256[4] finalResult;
+        bool finished;
+    }
+
+    /**
+     * @notice Struct to store the data of the first round
+     * @param groups The array of groups
+     * @param start The start timestamp of the first round
+     * @param end The end timestamp of the first round
+     */
+    struct FirstRound {
+        Group[8] groups;
+        uint256 start;
+        uint256 end;
+    }
+
+    /**
      * @notice Struct to store the data of a round
      * @param matches The array of matches
      * @param decidedMatches The number of decided matches
@@ -47,7 +76,7 @@ contract OlympicsBrackets is IBracketGame8 {
      * @param end The end timestamp of the round
      */
     struct Round {
-        Match[4] matches;
+        Match[8] matches;
         uint8 decidedMatches;
         uint256 start;
         uint256 end;
@@ -56,28 +85,22 @@ contract OlympicsBrackets is IBracketGame8 {
     /**
      * @notice Struct to store the data of a game
      * @param teams The array of team indexes
+     * @param firstRound The group phase round
      * @param rounds The array of rounds
-     * @param thirdPlaceMatch The third place match
      * @param start The start timestamp of the game
      * @param end The end timestamp of the game
      * @param currentRound The current round of the game
      * @param winner The winner of the game
-     * @param secondPlace The second place of the game
-     * @param thirdPlace The third place of the game
-     * @param hasThirdPlace If the game has a third place match
      * @param activated If the game is activated
      */
     struct Game {
-        uint256[8] teams;
-        Round[3] rounds;
-        Match thirdPlaceMatch;
+        uint256[16] teams;
+        FirstRound firstRound;
+        Round[4] rounds;
         uint256 start;
         uint256 end;
         uint8 currentRound;
         string winner;
-        string secondPlace;
-        string thirdPlace;
-        bool hasThirdPlace;
         bool activated;
     }
 
@@ -85,13 +108,10 @@ contract OlympicsBrackets is IBracketGame8 {
     IGamesHub public gamesHub;
 
     mapping(uint256 => bytes) private teams;
-    mapping(uint256 => Game) private games;
-    mapping(uint256 => uint256) private gameIndexToActiveIndex;
+    mapping(uint256 => Game) private games;// year => game
     mapping(bytes => uint256) private symbolToTeamId;
     mapping(uint256 => bytes) private teamIdToSymbol;
 
-    uint256[] private activeGames;
-    uint256 public minActiveGames = 1;
     uint256 public roundDuration;
     uint256 public daysToClaimPrize;
     uint256 public totalTeams;
@@ -109,6 +129,8 @@ contract OlympicsBrackets is IBracketGame8 {
      * @dev Constructor function
      * @param _gamesHubAddress Address of the games hub
      * @param _executorAddress Address of the Chainlink forwarder
+     * @param _proxyName Name of the proxy
+     * @param _ticketName Name of the ticket
      */
     constructor(
         address _gamesHubAddress,
@@ -213,7 +235,7 @@ contract OlympicsBrackets is IBracketGame8 {
             removeGame(totalGames);
             delete games[totalGames];
         }
-
+        
         activeGames.push(totalGames);
         gameIndexToActiveIndex[totalGames] = activeGames.length - 1;
 
@@ -351,6 +373,7 @@ contract OlympicsBrackets is IBracketGame8 {
                 _game.rounds[2].start = _lastTimeStamp;
             }
         } else if (_round == 2) {
+            require(_game.rounds[_round].decidedMatches == 0, "BRK-10");
             _game.rounds[_round].decidedMatches++;
 
             if (_result == 1) {
@@ -369,12 +392,16 @@ contract OlympicsBrackets is IBracketGame8 {
                 );
             }
 
-            _game.currentRound++;
-            _game.rounds[2].end = _lastTimeStamp;
-            _game.end = _lastTimeStamp;
+            if (!_game.hasThirdPlace) {
+                _game.currentRound++;
+                _game.rounds[2].end = _lastTimeStamp;
+                _game.end = _lastTimeStamp;
 
-            IBracketTicket8(gamesHub.helpers(keccak256(bytes(ticketName))))
-                .setGamePot(_gameIndex);
+                // removeGame(_gameIndex);
+
+                IBracketTicket8(gamesHub.helpers(keccak256(bytes(ticketName))))
+                    .setGamePot(_gameIndex);
+            }
         }
     }
 
@@ -407,6 +434,17 @@ contract OlympicsBrackets is IBracketGame8 {
                 ? _game.thirdPlaceMatch.team1
                 : _game.thirdPlaceMatch.team2
         );
+
+        if (_game.rounds[2].decidedMatches == 1) {
+            _game.currentRound++;
+            _game.rounds[2].end = _lastTimeStamp;
+            _game.end = _lastTimeStamp;
+
+            // removeGame(_gameIndex);
+
+            IBracketTicket8(gamesHub.helpers(keccak256(bytes(ticketName))))
+                .setGamePot(_gameIndex);
+        }
         _game.rounds[2].decidedMatches++;
     }
 

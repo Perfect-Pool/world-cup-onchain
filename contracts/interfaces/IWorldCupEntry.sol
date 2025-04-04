@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface IBracketTicket8 {
+interface IWorldCupEntry {
     function getBetData(
         uint256 _tokenId
     ) external view returns (uint256[8] memory);

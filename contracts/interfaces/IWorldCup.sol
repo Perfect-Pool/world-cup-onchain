@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-interface IBracketGame8 {
+interface IWorldCup {
     /** FUNCTIONS **/
     function setPaused(bool _paused) external;
 

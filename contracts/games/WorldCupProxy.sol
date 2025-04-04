@@ -2,16 +2,16 @@
 pragma solidity ^0.8.19;
 
 import "../interfaces/IGamesHub.sol";
-import "../interfaces/IBracketGame8.sol";
+import "./WorldCup.sol";
 
 /**
- * @title BracketGame8
+ * @title WorldCup
  * @author PerfectPool
- * @notice The proxy contract for the Bracket8 game, that stores all information about the games.
+ * @notice The proxy contract for the WorldCup game, that stores all information about the games.
  * Please refer to the original contract for more informations about overral functionality.
  */
 
-contract Bracket8Proxy {
+contract WorldCupProxy {
     /** EVENTS **/
     event GameCreated(uint256 gameIndex);
     event GameActivated(uint256 gameIndex);
